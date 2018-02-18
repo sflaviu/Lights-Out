@@ -1,0 +1,157 @@
+
+WRITE MACRO
+LOCAL NEXT,PRINT,PRINTARE		;used to print an integer
+			;AX is the register that will be printed
+PUSH BX		
+PUSH CX
+PUSH DX		;we save the other registers on the stack
+
+ MOV DX, 0
+ MOV BX, 0 
+ MOV CX, 0
+NEXT:
+	DIV ZECE	; we divide AX with 10 at each step
+	MOV DL, AH
+	MOV DH,0
+	PUSH DX		; we move the value on the stack (we need to print them in reverse order)
+	MOV AH,0	; remove the pushed digit
+	INC BX		;BX will hold the number of digits of the 
+	CMP AX, 0
+	JZ PRINT	;when AX becomes 0, we start printing the digits
+	
+JMP NEXT
+ 
+PRINT:
+	MOV CX, BX	;CX is ued as the counter in the next loop
+PRINTARE:
+	POP DX		
+	ADD DL, 48	;adding to get the ASCII code of the character
+	MOV AH, 02H
+	INT 21H		; write the character
+LOOP PRINTARE
+
+POP DX
+POP CX 
+POP BX	;pop the values back
+ENDM
+
+;-------------------------------------------------------------------------------
+
+; the Position and String macro are used together, to print the Moves and the time
+; so Position will push the values on the stack, while String will pop them back
+
+POSITION MACRO
+
+PUSH AX
+PUSH BX
+PUSH CX
+PUSH DX
+
+; we set the cursor position
+ MOV  DL, COL   ;screen column
+ MOV  DH, ROW   ;screen row
+ MOV  AH, 2     
+ MOV  BH, 0     ;screen page
+ INT  10H       
+ 
+ENDM
+
+STRING MACRO
+
+MOV DX,PSTRING
+MOV AH, 9
+INT 21h			; we print the string that has the adress moved in PSTRING
+
+POP DX
+POP CX
+POP BX 
+POP AX
+
+ENDM
+
+;----------------------------------------------------------------------------
+; this macro is used to draw the board stored in Board
+BOARDD MACRO
+LOCAL ROW,RE,COL,CONT,RESBL,FINM
+
+
+MOV AX,02
+INT 33H ; turn of mouse cursor
+
+MOV BL,30  ; starting positions to draw (row)
+MOV SI,30  ; starting positions to draw (col)
+
+ROW:
+
+MOV AX,BX
+MOV BP,30 ;use BP to divide AX (current row location in pixels)
+MOV DX,0
+DIV BP
+SUB AL,1
+MOV BP,AX ;we get the current column we are on, dividing the curent column we are on (in pixels) with 30,and substracting 1 (array goes from 0 to 4)
+
+MOV AX,SI 	
+MOV DI,30 ;use DI to divide AX (current column location in pixels)
+MOV DX,0	
+DIV DI		
+SUB AL,1
+MOV DI,AX ;we get the current row we are on, dividing the curent row we are on (in pixels) with 30,and substracting 1 (array goes from 0 to 4)
+
+MOV AL,BOARD[DI]     ; get the current cell from the Board
+TEST AL,YVALUES[BP]  ; check the color of the square
+
+MOV AL,7	;if the cel has a '0' in it, we color it Light Gray (code 7)
+MOV AH, 0CH ; write pixel for INT 10H
+JZ RE
+MOV AL,0EH ;if the cell has a '1' in it, we color it Yellow (code E)
+
+RE:
+
+MOV BP,BX ;move current position of the column into BP (after we drew a cell)
+ADD BP,20 ; adding size of square
+
+MOV DI,SI ;move current position of the row into DI (after we drew a cell)
+ADD DI,20 ; adding size of square
+
+MOV CX, BX  ;move the column into DX (the column coordoninate where the pixel will be printed )
+MOV DX, SI  ;move the row into DX (the row coordoninate where the pixel will be printed )
+
+;INT 10H will use CX as the x coordinate, DX as the y coordinate, AL the color and BH the page
+; we will print from BX to BP, and for each pixel in that range from SI to DI
+
+COL:
+INC CX
+INT 10H		;print the pixel
+CMP CX, BP  ;check if we reached the end of the column
+JNE COL
+
+MOV CX, BX  ; reset to start of col
+INC DX      ;we go to the next row
+CMP DX, DI  ; check if we reached the end of the row, if so we finished drawing the curent cell
+JNE COL
+
+CMP DI,170  ; we check of we got to the end of the column, last writen pixel 
+JNE CONT
+CMP BP,170   ; if DI and BP are both equal to 170 (last cell was printed) then we finish drawing
+JE FINM
+
+CONT:
+
+CMP BP,170  ; check if we are on the last column, then we need to move on the next row
+JE RESBL
+
+ADD BL,30  ; if not, we just move to the next cell on the row (drawing from BL to BP)
+ADD BP,30
+
+JMP ROW
+
+RESBL:
+MOV BL,30 ; we move to the first column (drawing from 30 to 50)
+MOV BP,50
+ADD SI,30 ; and move one row lower (30 pixels lower, drawing from SI to DI)
+ADD DI,30
+
+JMP ROW
+
+FINM:
+ENDM
